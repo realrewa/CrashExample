@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using GameCode.ECS.MainContext.EntityDescriptors;
 using GameCode.ECS.MainContext.EntityViews;
@@ -13,15 +14,13 @@ namespace GameCode.ECS.MainContext.Engines
         
         private readonly IEntityFunctions _entityFunctions;
 
-        private int _uselessIterations = 0;
-        
         public ExampleEngine1(IEntityFunctions entityFunctions)
         {
             _entityFunctions = entityFunctions;
         }
         public void Ready()
         {
-            Update().RunOnScheduler(Schedulers.exampleScheduler);
+            Update().RunOnScheduler(Schedulers.exampleSchedulerMainThread);
         }
 
         private IEnumerator Update()
@@ -36,36 +35,34 @@ namespace GameCode.ECS.MainContext.Engines
                 
                 for (var i = 0; i < count; i++)
                 {
-                    DoSomeWork(entityViews[i]);
+                    switch (entityViews[i].ExampleComponent.State)
+                    {
+                        case ExampleEntityState.State_1:
+                            entityViews[i].ExampleComponent.State = ExampleEntityState.Processing;
+                            DoSomeWork(entityViews[i]).RunOnScheduler(Schedulers.exampleSchedulerMultiThread);
+                            break;
+                        case ExampleEntityState.Completed:
+                            entityViews[i].ExampleComponent.State = ExampleEntityState.State_2;
+                            _entityFunctions.SwapEntityGroup<ExampleEntityDescriptor>(entityViews[i].ID, ExampleGroups.ExampleGroup2);
+                            break;
+                    }
                 }
                 
                 yield return null;
             }
         }
 
-        private void DoSomeWork(ExampleEntityView entityView)
+        private IEnumerator DoSomeWork(ExampleEntityView entityView)
         {
-            if (entityView.ExampleComponent.State != ExampleEntityState.State_1)
-            {
-                _uselessIterations++;
-                return;
-            }
+            entityView.ExampleComponent.State = ExampleEntityState.Completed;
 
-            if (_uselessIterations > 0)
-            {
-                Debug.Log($"{_uselessIterations} useless iterations in engine 1");
-                _uselessIterations = 0;
-            }
-            entityView.ExampleComponent.State = ExampleEntityState.State_2;
-            // without this ^ we get a "Only one entity operation per submission is allowed" while running on MultiThreadRunner
-            
             //
             //work
             //
             
-            Debug.Log($"Working in engine 1");
+            Debug.Log("Working in engine 1");
             
-            _entityFunctions.SwapEntityGroup<ExampleEntityDescriptor>(entityView.ID, ExampleGroups.ExampleGroup2);
+            yield break;
         }
         
     }
